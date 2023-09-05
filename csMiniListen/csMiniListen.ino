@@ -9,6 +9,8 @@
 
 Adafruit_MCP9601 mcp;
 
+bool thermocoupleConnected = true;  // Assume thermocouple is connected initially
+
 void setup() {
     Serial.begin(115200);
     while (!Serial) {
@@ -19,8 +21,17 @@ void setup() {
     Wire.begin(SDA_PIN, SCL_PIN);
 
     /* Initialise the driver with I2C_ADDRESS and the default I2C bus. */
-    if (! mcp.begin(I2C_ADDRESS)) {
+    if (!mcp.begin(I2C_ADDRESS)) {
         while (1);
+    }
+
+    uint8_t status = mcp.getStatus();
+
+    if (status & MCP9601_STATUS_OPENCIRCUIT || status & MCP9601_STATUS_SHORTCIRCUIT) {
+        Serial.println("Thermocouple not detected or short-circuited. Proceeding with other sensors.");
+        thermocoupleConnected = false;  // Set the flag to false
+    } else {
+        Serial.println("Thermocouple detected. Proceeding with all sensors.");
     }
 
     mcp.setADCresolution(MCP9600_ADCRESOLUTION_18);
@@ -40,17 +51,13 @@ void setup() {
 }
 
 void loop() {
-    uint8_t status = mcp.getStatus();
+    float hotJunctionTemp = 0;
+    float coldJunctionTemp = 0;
 
-    if (status & MCP9601_STATUS_OPENCIRCUIT) { 
-        return; // don't continue, since there's no thermocouple
+    if (thermocoupleConnected) {
+        hotJunctionTemp = mcp.readThermocouple();
+        coldJunctionTemp = mcp.readAmbient();
     }
-    if (status & MCP9601_STATUS_SHORTCIRCUIT) { 
-        return; // don't continue, since the sensor is not working
-    }
-
-    float hotJunctionTemp = mcp.readThermocouple();
-    float coldJunctionTemp = mcp.readAmbient();
 
     // Read pressure value from CJMCU-36
     int pressureValue = analogRead(PRESSURE_PIN);
