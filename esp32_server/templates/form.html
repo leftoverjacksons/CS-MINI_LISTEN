@@ -4,7 +4,7 @@
     <title>ESP32 Data Stream</title>
 </head>
 <body>
-    <div id="statusMessage">Listening for ESP-32...</div>
+    <div id="statusMessage">Listening for ESP-32... (Server Version: <span id="serverVersion"></span>)</div>
 
     <form id="labelForm" style="display: none;" onsubmit="submitLabel(event)">
         <label for="label">Data Stream Name:</label>
@@ -13,19 +13,16 @@
     </form>
 
     <script>
+        // Initialize server version from Flask variable
+        document.getElementById('serverVersion').innerText = '{{ version }}';
+
         function checkForNewDevice() {
             fetch('/check_device').then(response => response.json()).then(data => {
                 if (data.new_device) {
-                    // Show the form or prompt user in some way
-                    alert("New ESP32 detected! Please provide a label for the session.");
                     document.getElementById('labelForm').style.display = 'block';
-                    document.getElementById('statusMessage').innerText = "ESP-32 detected!";
+                    document.getElementById('statusMessage').innerText = "ESP-32 detected! (Server Version: " + '{{ version }}' + ")";
                 } else {
-                    if (document.getElementById('labelForm').style.display === 'none') {
-                        document.getElementById('statusMessage').innerText = "Logging";
-                    } else {
-                        document.getElementById('statusMessage').innerText = "Listening for ESP-32...";
-                    }
+                    document.getElementById('statusMessage').innerText = "Listening for ESP-32... (Server Version: " + '{{ version }}' + ")";
                 }
             });
         }
@@ -40,15 +37,18 @@
                 },
                 body: JSON.stringify({ label: label })
             }).then(response => response.json()).then(data => {
-                if (data.status === "label set") {
-                    alert("Label set successfully!");
+                if (data.status === "label set and table created") {
+                    alert("Label set successfully and table created!");
+                    document.getElementById('label').value = ''; // Clear the input field
                     document.getElementById('labelForm').style.display = 'none';
-                    document.getElementById('statusMessage').innerText = "Logging";
+                    document.getElementById('statusMessage').innerText = "Logging... (Server Version: " + '{{ version }}' + ")";
+                } else {
+                    alert("Failed to set label and create table!");
                 }
             });
         }
 
-        setInterval(checkForNewDevice, 5000); // Check every 5 seconds
+        setInterval(checkForNewDevice, 5000);
     </script>
 </body>
 </html>

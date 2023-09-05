@@ -1,14 +1,13 @@
 from flask import Flask, render_template, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
-import re
+import pymysql
+from sqlalchemy import text, create_engine
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://rtroy:dtrules1+@MJ072TPK:3306/esp32_test_data'
 db = SQLAlchemy(app)
-
 current_label = None
-new_device_detected = False  # To track if a new device handshake has been received
+new_device_detected = False
 
 class Session(db.Model):
     session_id = db.Column(db.Integer, primary_key=True)
@@ -17,9 +16,10 @@ class Session(db.Model):
     end_time = db.Column(db.DateTime, default=None)
 
 def table_exists(name):
-    query = f"SELECT COUNT(1) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{name}'"
-    result = db.engine.execute(query).fetchone()
-    return result[0] > 0
+    query = text(f"SHOW TABLES LIKE :table_name")
+    return db.session.execute(query, {'table_name': name}).first() is not None
+
+
 
 def create_table(name):
     if not table_exists(name):
@@ -33,11 +33,13 @@ def create_table(name):
                 switch_state VARCHAR(10)
             );
         """)
-        db.engine.execute(create_table_sql)
+        db.session.execute(create_table_sql)
+
+
 
 @app.route('/')
 def index():
-    return render_template('form.html')
+    return render_template('form.html', server_version="1.0.3")
 
 @app.route('/data', methods=['POST'])
 def receive_data():
@@ -52,6 +54,10 @@ def receive_data():
             return jsonify(status="no label provided"), 400
 
         table_name = "data_" + str(current_label)
+        
+        if not table_exists(table_name):
+            create_table(table_name)
+
         hot_junction = float(data.get('Hot Junction'))
         cold_junction = float(data.get('Cold Junction'))
         pressure = int(data.get('Pressure (RAW ADC)'))
@@ -67,7 +73,8 @@ def receive_data():
             "pressure": pressure,
             "switch_state": switch_state
         }
-        db.engine.execute(insert_sql, **params)  # Use db.engine.execute() here
+        db.session.execute(insert_sql, params)
+        db.session.commit()
         
         return jsonify(status="data stored")
 
@@ -76,12 +83,10 @@ def set_label():
     global current_label
     current_label = request.json.get('label')
 
-    # Add entry to sessions table
     new_session = Session(session_name=current_label)
     db.session.add(new_session)
     db.session.commit()
-    
-    # Dynamically create a new table for this session's data
+
     table_name = "data_" + str(new_session.session_id)
     create_table(table_name)
 
@@ -91,12 +96,11 @@ def set_label():
 def check_device():
     global new_device_detected
     if new_device_detected:
-        new_device_detected = False  # Reset the flag
+        new_device_detected = False
         return jsonify(new_device=True), 200
     return jsonify(new_device=False), 200
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
+    app.run(host='0.0.0.0', port=5001, debug=True)

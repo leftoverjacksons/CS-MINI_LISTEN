@@ -13,10 +13,12 @@
 // WiFi Credentials
 const char* ssid = "engtech-ThinkPad-X270";
 const char* password = "Franco123";
-const char* serverAddress = "http://10.10.100.132:5000/data";  // Point to the /data endpoint
+const char* serverAddress = "http://10.10.100.132:5001/data";
 
 Adafruit_MCP9601 mcp;
 WiFiClient client;
+
+bool thermocoupleConnected = true;  // Assume thermocouple is connected initially
 
 void setup() {
     Serial.begin(115200);
@@ -29,7 +31,15 @@ void setup() {
     // Initialize the I2C bus
     Wire.begin(SDA_PIN, SCL_PIN);
     if (! mcp.begin(I2C_ADDRESS)) {
-        while (1);
+        Serial.println("Failed to initialize MCP9601");
+    }
+
+    uint8_t status = mcp.getStatus();
+    if (status & MCP9601_STATUS_OPENCIRCUIT || status & MCP9601_STATUS_SHORTCIRCUIT) {
+        Serial.println("Thermocouple not detected or short-circuited. Proceeding with other sensors.");
+        thermocoupleConnected = false;
+    } else {
+        Serial.println("Thermocouple detected. Proceeding with all sensors.");
     }
 
     mcp.setADCresolution(MCP9600_ADCRESOLUTION_18);
@@ -64,7 +74,11 @@ void sendHandshake() {
     HTTPClient http;
     http.begin(serverAddress);
     http.addHeader("Content-Type", "application/json");
-    int httpResponseCode = http.POST("{\"type\": \"handshake\"}");
+
+    String macAddress = WiFi.macAddress();
+    String handshakeJson = "{\"type\": \"handshake\", \"mac_address\": \"" + macAddress + "\"}";
+
+    int httpResponseCode = http.POST(handshakeJson);
     if (httpResponseCode > 0) {
         Serial.printf("Handshake sent! Response code: %d\n", httpResponseCode);
     } else {
@@ -89,21 +103,19 @@ void sendData(float hotJunctionTemp, float coldJunctionTemp, int pressureValue, 
 
 void loop() {
     if (WiFi.status() != WL_CONNECTED) {
-        connectToWiFi();  // Reconnect to WiFi if connection is lost
+        connectToWiFi();
     }
 
-    uint8_t status = mcp.getStatus();
-    if (status & MCP9601_STATUS_OPENCIRCUIT) { 
-        return;
-    }
-    if (status & MCP9601_STATUS_SHORTCIRCUIT) { 
-        return;
+    float hotJunctionTemp = 0;
+    float coldJunctionTemp = 0;
+
+    if (thermocoupleConnected) {
+        hotJunctionTemp = mcp.readThermocouple();
+        coldJunctionTemp = mcp.readAmbient();
     }
 
-    float hotJunctionTemp = mcp.readThermocouple();
-    float coldJunctionTemp = mcp.readAmbient();
     int pressureValue = analogRead(PRESSURE_PIN);
-    bool pressureSwitchState = digitalRead(INPUT_PIN); 
+    bool pressureSwitchState = digitalRead(INPUT_PIN);
 
     sendData(hotJunctionTemp, coldJunctionTemp, pressureValue, pressureSwitchState);
 
