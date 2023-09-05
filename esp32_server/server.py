@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 import pymysql
 from sqlalchemy import text, create_engine
+import re
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://rtroy:dtrules1+@MJ072TPK:3306/esp32_test_data'
@@ -21,10 +22,15 @@ def table_exists(name):
 
 
 
+
+
 def create_table(name):
-    if not table_exists(name):
+    # Replace invalid characters
+    clean_name = re.sub('[^a-zA-Z0-9_]', '_', name)
+    
+    if not table_exists(clean_name):
         create_table_sql = text(f"""
-            CREATE TABLE {name} (
+            CREATE TABLE {clean_name} (
                 data_point_id INT AUTO_INCREMENT PRIMARY KEY,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 hot_junction FLOAT,
@@ -34,6 +40,7 @@ def create_table(name):
             );
         """)
         db.session.execute(create_table_sql)
+
 
 
 
