@@ -1,7 +1,12 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\csMiniListen",
+    "\\csMiniListenWIFI",
+    "\\esp32_server",
+    "\\esp32_server\\templates",
+    "\\esp32_server\\__pycache__"
   ],
-  "SelectedNode": "\\C:\\Users\\jtking\\Source\\Repos\\leftoverjacksons\\CS-MINI_LISTEN",
+  "SelectedNode": "\\esp32_server\\server.py",
   "PreviewInSolutionExplorer": false
 }
