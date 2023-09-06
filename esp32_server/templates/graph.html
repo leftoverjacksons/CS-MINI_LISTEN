@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Data Graph</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <h1>ESP32 Data Graph</h1>
+
+    <label for="tableSelect">Select Table: </label>
+    <select id="tableSelect"></select>
+
+    <button id="toggleMode">Switch to Live</button>
+
+    <div id="chartContainer" style="width: 100%; height: 400px;">
+        <canvas id="dataChart"></canvas>
+    </div>
+
+    <div id="timeSlider" style="width: 90%; margin: auto;">
+        <input type="range" id="timeRange" min="0" max="100" value="100">
+    </div>
+
+    <script>
+        // Initialize variables
+        var isLive = false;
+        var chart;
+        var timer;
+
+        // Function to fetch available tables
+        function fetchTables() {
+            $.get("/api/tables", function (data) {
+                // Populate dropdown
+                data.tables.forEach(function (table) {
+                    $("#tableSelect").append(new Option(table, table));
+                });
+            });
+        }
+
+        // Function to fetch and plot data
+        function fetchData() {
+            var table = $("#tableSelect").val();
+            var limit = isLive ? 200 : null;  // Limit to 200 data points in Live mode
+            var timePercent = $("#timeRange").val();  // Time range from slider
+            var startTime = null;
+            var endTime = null;
+
+            if (!isLive) {
+                // Calculate startTime and endTime based on timePercent...
+                // This part is optional and would require server-side changes
+            }
+
+            // Build API URL
+            var apiUrl = "/api/data?table=" + table;
+            if (limit) apiUrl += "&limit=" + limit;
+            if (startTime) apiUrl += "&start_time=" + startTime;
+            if (endTime) apiUrl += "&end_time=" + endTime;
+
+            $.get(apiUrl, function (data) {
+                // Plot data
+                var labels = data.map(function (point) { return point.timestamp; });
+                var hotJunctionData = data.map(function (point) { return point.hot_junction; });
+                var coldJunctionData = data.map(function (point) { return point.cold_junction; });
+                var pressureData = data.map(function (point) { return point.pressure; });
+
+                if (chart) {
+                    chart.destroy();
+                }
+
+                chart = new Chart(document.getElementById("dataChart"), {
+                    type: "line",
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: "Hot Junction",
+                                data: hotJunctionData,
+                                borderColor: "red",
+                                fill: false
+                            },
+                            {
+                                label: "Cold Junction",
+                                data: coldJunctionData,
+                                borderColor: "blue",
+                                fill: false
+                            },
+                            {
+                                label: "Pressure",
+                                data: pressureData,
+                                borderColor: "green",
+                                fill: false
+                            }
+                        ]
+                    }
+                });
+            });
+        }
+
+        // Fetch tables on page load
+        fetchTables();
+
+        // Toggle between Live and Historical modes
+        $("#toggleMode").click(function () {
+            isLive = !isLive;
+            if (isLive) {
+                $(this).text("Switch to Historical");
+                timer = setInterval(fetchData, 5000);
+            } else {
+                $(this).text("Switch to Live");
+                clearInterval(timer);
+            }
+        });
+
+        // Fetch data when table is selected
+        $("#tableSelect").change(fetchData);
+
+        // Fetch data when time range is adjusted (for Historical mode)
+        $("#timeRange").change(fetchData);
+
+    </script>
+
+</body>
+</html>
